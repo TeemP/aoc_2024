@@ -31,10 +31,21 @@ fn check_safety(report: &[i32]) -> bool {
 
 
 
-fn count_safe_reports(reports: &[Vec<i32>]) -> usize {
+fn count_safe_reports(reports: &[Vec<i32>], damp: bool) -> usize {
     reports.iter()
-    .skip_while(|report| {
-        !check_safety(report)
+    .filter(|report| {
+        if check_safety(report){
+            return true;
+        }
+        if damp {
+            for skip_index in 0..report.len(){
+                let skipped_reports = [&report[..skip_index], &report[skip_index+1..]].concat();
+                if check_safety(&skipped_reports) {
+                    return true;
+                }
+            }
+        }
+        false
     }).count()
 }
 
@@ -43,8 +54,8 @@ fn count_safe_reports(reports: &[Vec<i32>]) -> usize {
 fn main() {
     let args: Vec<String> = env::args().collect();
     let reports = read_file(&args[1]);
-    let safe_count = count_safe_reports(&reports);
-    println!("Safe report count: {}", safe_count);
+    println!("Safe report count: {}", count_safe_reports(&reports, false));
+    println!("Safe report count: {}", count_safe_reports(&reports, true));
 }
 
 
