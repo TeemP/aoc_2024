@@ -2,8 +2,7 @@ use std::env;
 use std::fs::File;
 use std::io::Read;
 
-
-enum State {
+enum MulState {
     Begin,
     M,
     U,
@@ -14,77 +13,150 @@ enum State {
     SecondNumeric(u32)
 }
 
-fn parse_memory_string(string: &str) -> u32 {
-    let mut state = State::Begin;
+enum EnabledState {
+    Begin,
+    D,
+    O,
+    N,
+    Apostrophe,
+    T,
+    LeftBracket
+}
+
+fn parse_memory_string(string: &str, enable_command: bool) -> u32 {
+    let mut mul_state = MulState::Begin;
+    let mut enabled_state = EnabledState::Begin;
     let mut sum = 0;
     let mut first_multiplier= 0;
+    let mut enabled = true;
     for parsed_character in string.chars(){
-        match state {
-            State::Begin => {
+        match mul_state {
+            MulState::Begin => {
                 if parsed_character == 'm' {
-                    state = State::M;
+                    mul_state = MulState::M;
                 } else {
-                    state = State::Begin;
+                    mul_state = MulState::Begin;
                 }
             },
-            State::M => {
+            MulState::M => {
                 if parsed_character == 'u' {
-                    state = State::U;
+                    mul_state = MulState::U;
                 } else {
-                    state = State::Begin;
+                    mul_state = MulState::Begin;
                 }
             },
-            State::U =>  {
+            MulState::U =>  {
                 if parsed_character == 'l' {
-                    state = State::L;
+                    mul_state = MulState::L;
                 } else {
-                    state = State::Begin;
+                    mul_state = MulState::Begin;
                 }
             },
-            State::L =>  {
+            MulState::L =>  {
                 if parsed_character == '(' {
-                    state = State::LeftBracket;
+                    mul_state = MulState::LeftBracket;
                 } else {
-                    state = State::Begin;
+                    mul_state = MulState::Begin;
                 }
             },
-            State::LeftBracket => {
+            MulState::LeftBracket => {
                 if parsed_character.is_numeric() {
-                    state = State::FirstNumeric(parsed_character.to_digit(10).unwrap());
+                    mul_state = MulState::FirstNumeric(parsed_character.to_digit(10).unwrap());
                 } else {
-                    state = State::Begin;
+                    mul_state = MulState::Begin;
                 }
             },
-            State::FirstNumeric(numeric_value) => {
+            MulState::FirstNumeric(numeric_value) => {
                 if parsed_character.is_numeric() {
-                    state = State::FirstNumeric(
+                    mul_state = MulState::FirstNumeric(
                         numeric_value * 10 + 
                         parsed_character.to_digit(10)
                         .unwrap()
                     );
                 } else if  parsed_character == ',' {
                     first_multiplier = numeric_value;
-                    state = State::Sep;
+                    mul_state = MulState::Sep;
                 } else {
-                    state = State::Begin;
+                    mul_state = MulState::Begin;
                 }
             },
-            State::Sep =>  if parsed_character.is_numeric() {
-                state = State::SecondNumeric(parsed_character.to_digit(10).unwrap());
+            MulState::Sep =>  if parsed_character.is_numeric() {
+                mul_state = MulState::SecondNumeric(parsed_character.to_digit(10).unwrap());
             },
-            State::SecondNumeric(numeric_value) =>  {
+            MulState::SecondNumeric(numeric_value) =>  {
                 if parsed_character.is_numeric() {
-                    state = State::SecondNumeric(
+                    mul_state = MulState::SecondNumeric(
                         numeric_value * 10 + 
                         parsed_character.to_digit(10)
                         .unwrap()
                     );
                 } else if  parsed_character == ')' {
-                    sum += first_multiplier * numeric_value;
-                    state = State::Begin;
+                    if enabled {
+                        sum += first_multiplier * numeric_value;
+                    }
+                    mul_state = MulState::Begin;
                 } else {
-                    state = State::Begin;
+                    mul_state = MulState::Begin;
                 }
+            }
+        }
+        if enable_command {
+            match enabled_state {
+                EnabledState::Begin => {
+                    if parsed_character == 'd' {
+                        enabled_state = EnabledState::D;
+                    } else {
+                        enabled_state = EnabledState::Begin;
+                    }
+                },
+                EnabledState::D => {
+                    if parsed_character == 'o' {
+                        if enabled {
+                            enabled_state = EnabledState::O;
+                        }
+                        else {
+                            enabled_state = EnabledState::T
+                        }
+                    } else {
+                        enabled_state = EnabledState::Begin;
+                    }
+                },
+                EnabledState::O => {
+                    if parsed_character == 'n' {
+                        enabled_state = EnabledState::N;
+                    } else {
+                        enabled_state = EnabledState::Begin;
+                    }
+                },
+                EnabledState::N => {
+                    if parsed_character == '\'' {
+                        enabled_state = EnabledState::Apostrophe;
+                    } else {
+                        enabled_state = EnabledState::Begin;
+                    }
+                },
+                EnabledState::Apostrophe => {
+                    if parsed_character == 't' {
+                        enabled_state = EnabledState::T;
+                    } else {
+                        enabled_state = EnabledState::Begin;
+                    }
+                },
+                EnabledState::T => {
+                    if parsed_character == '(' {
+                        enabled_state = EnabledState::LeftBracket;
+                    } else {
+                        enabled_state = EnabledState::Begin;
+                    }
+                },
+                EnabledState::LeftBracket => {
+                    if parsed_character == ')' {
+                        enabled_state = EnabledState::Begin;
+                        enabled = !enabled;
+                    } else {
+                        enabled_state = EnabledState::Begin;
+                    }
+                },
             }
         }
     }
@@ -102,6 +174,9 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let memory_string = read_file(&args[1]);
     println!("Sum of all multiplications: {}", 
-        parse_memory_string(&memory_string)
+        parse_memory_string(&memory_string, false)
+    );
+    println!("Sum of all multiplications with enabled-command: {}", 
+        parse_memory_string(&memory_string, true)
     )
 }
